@@ -1,11 +1,12 @@
 // FIL: FileOrganizer.cs -> Selve filbehandlingsklassen
+using System;
+
 namespace FileOrganizerCLI.Services
 {
     public class FileOrganizer
     {
-        public void Run(string path)
+        public void Run(string path, int choice, bool dryRun)
         {
-            Console.WriteLine($"Organizing files in: {path}");
 
             if (!Directory.Exists(path))
             {
@@ -14,16 +15,74 @@ namespace FileOrganizerCLI.Services
             }
 
             var files = Directory.GetFiles(path);
+
             foreach (var file in files)
             {
-                string ext = Path.GetExtension(file).Trim('.').ToLower();
-                string targetDir = Path.Combine(path, ext);
+                var info = new FileInfo(file);
+                string folderName;
 
-                Directory.CreateDirectory(targetDir);
-                File.Move(file, Path.Combine(targetDir, Path.GetFileName(file)), true);
+                switch (choice)
+                {
+                    case 1:
+
+                        folderName = Path.GetExtension(file).Trim('.').ToLowerInvariant();
+
+                        if (string.IsNullOrEmpty(folderName))
+                            folderName = "uten-filtype";
+
+                        break;
+                    case 2:
+                        folderName = info.LastWriteTime.ToString("yyyy-MM");
+                        break;
+                    case 3:
+                        long oneMb = 1024L * 1024;
+                        long oneHundredMb = 100L * oneMb;
+                        long oneThousandMb = 1000L * oneMb;
+
+                        if (info.Length < oneMb)
+                            folderName = "under-1-MB";
+                        else if (info.Length < oneHundredMb)
+                            folderName = "1-100-MB";
+                        else if (info.Length <= oneThousandMb)
+                            folderName = "100-1000-MB";
+                        else
+                            folderName = "over-1000-MB";
+
+                        break;
+                    default:
+                        Console.WriteLine("Invalid choice.");
+                        return;
+                }
+
+                string targetDir = Path.Combine(path, folderName);
+                string targetPath = Path.Combine(targetDir, Path.GetFileName(file));
+
+                string action = dryRun
+                    ? $"DRY RUN: Would move {file} -> {targetPath}"
+                    : $"Moved {file} -> {targetPath}";
+
+                Console.WriteLine(action);
+                Log(action);
+
+                if (!dryRun)
+                {
+                    Directory.CreateDirectory(targetDir);
+                    File.Move(file, targetPath, true);
+                }
+
             }
 
             Console.WriteLine("Done!");
+
+        }
+        private static void Log(string message)
+        {
+            string logPath = Path.Combine(
+                AppContext.BaseDirectory,
+                "organizer.log");
+
+            string entry = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {message}{Environment.NewLine}";
+            File.AppendAllText(logPath, entry);
         }
     }
 }
